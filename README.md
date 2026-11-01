@@ -10,7 +10,7 @@ data  ──▶  factors  ──▶  signals  ──▶  evaluation (research)
 
 | Layer | Module | What it does |
 |---|---|---|
-| Data | `alpha_gen.data` | `MarketData` holds aligned panels (perp close, volume, funding, open interest, spot). `CCXTSource` loads them from exchanges, `CachedSource` stores them as Parquet, and `make_synthetic_market` generates test data with a planted edge. |
+| Data | `alpha_gen.data` | `MarketData` holds aligned panels (perp close, quote volume, funding, open interest, spot). `BinanceVisionSource` loads years of history from Binance's free archive, including delisted coins. `CCXTSource` loads recent data from live exchanges, `CachedSource` stores it as Parquet, `top_n_membership` builds a point-in-time liquidity universe, and `make_synthetic_market` generates test data with a planted edge. |
 | Factors | `alpha_gen.factors` | Registry of score functions. A higher score means a higher expected return. Built in: `funding_carry`, `basis_carry`, `oi_trend`, `momentum`, `reversal`, `low_vol`. |
 | Signals | `alpha_gen.signals` | Cross-sectional z-score and rank, winsorising, static or IC-weighted blending (no look-ahead), dollar-neutral sizing, volatility targeting, and `Strategy` bundles. |
 | Evaluation | `alpha_gen.evaluation` | Rank IC, IC decay, turnover, a backtest with fees, slippage and funding, walk-forward splits, and `evaluate_factor` tear sheets. |
@@ -53,6 +53,26 @@ strategy = Strategy("carry_momo", {"carry": FundingCarry(), "momo": Momentum(loo
 print(run_backtest(strategy.target_weights(data), data, CostModel(fee_bps=4), lag=2).summary())
 ```
 
+## Historical data and research
+
+`BinanceVisionSource` reads [data.binance.vision](https://data.binance.vision): monthly and daily
+zipped CSVs of perp and spot klines, funding and open interest. It's free and has no rate limits.
+Parsed files are cached under `.cache/binance-vision`.
+
+```python
+from alpha_gen.data import top_n_membership, candidates
+from alpha_gen.data.binance_vision import BinanceVisionSource, list_perp_symbols
+
+src = BinanceVisionSource(include_spot=True)
+symbols = list_perp_symbols()  # every USDT perp ever listed, incl. delisted
+volume = src.monthly_quote_volume(symbols, "2021-12-01", "2026-10-01")
+universe = top_n_membership(volume, top_n=30)  # month m uses month m-1 volume
+data = src.fetch(candidates(universe), "2022-01-01", "2026-10-01", "1h")
+```
+
+`research/real_data_v1.py` runs the full validation protocol: survivorship-free universe, costs,
+funding, and walk-forward out-of-sample selection. It writes `research/reports/real_data_v1.md`.
+
 ## Conventions (read before adding factors)
 
 - Panels are wide DataFrames: a UTC index of **bar open times**, with one column per ccxt perp symbol.
@@ -94,6 +114,7 @@ commit, a social post, or OpenTimestamps.
 
 ```bash
 uv run pytest && uv run ruff check . && uv run ruff format --check . && uv run mypy
+uv run pytest -m network   # opt-in smoke test against the live Binance archive
 ```
 
 ## Roadmap

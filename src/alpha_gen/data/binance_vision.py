@@ -222,7 +222,7 @@ class Dataset:
 
     def url(self, base: str, freq: str, symbol: str, period: str, interval: str) -> str:
         rel = self.path.format(freq=freq, symbol=symbol, interval=interval, period=period)
-        return f"{base}/{rel}"
+        return f"{base}/{urllib.parse.quote(rel)}"  # some symbols are not ASCII
 
 
 PERP_KLINES = Dataset(

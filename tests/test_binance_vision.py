@@ -263,6 +263,13 @@ def test_symbol_helpers():
     assert spot_candidates("1INCHUSDT") == [("1INCHUSDT", 1.0)]
 
 
+def test_non_ascii_symbols_are_url_encoded():
+    url = PERP_KLINES.url(BASE, "monthly", "我踏马来了USDT", "2025-10", "1d")
+    assert url.isascii()
+    assert url.startswith(f"{BASE}/futures/um/monthly/klines/%E6%88%91")
+    assert url.endswith("USDT-1d-2025-10.zip")
+
+
 def _listing(prefixes: list[str], truncated: bool, next_marker: str = "") -> bytes:
     items = "".join(f"<CommonPrefixes><Prefix>{p}</Prefix></CommonPrefixes>" for p in prefixes)
     marker = f"<NextMarker>{next_marker}</NextMarker>" if next_marker else ""
