@@ -3,6 +3,7 @@
 | Script | Report | Question |
 |---|---|---|
 | `real_data_v1.py` | [`reports/real_data_v1.md`](reports/real_data_v1.md) | Does any built-in factor survive costs out of sample on a survivorship-free Binance perp universe? |
+| `v2_hypotheses.py` | [`reports/v2.md`](reports/v2.md) | Do the six specs [pre-registered](v2_preregistration.md) after v1 pass the gate? |
 
 Run with `uv run python research/real_data_v1.py`. The first run downloads about 1 GB from
 data.binance.vision into `.cache/binance-vision`; later runs read the cache and take about 3 minutes.
@@ -36,3 +37,26 @@ in at least 3 of the 4 test years (2023–2026). Nothing here is ready to sell.
 
 Not covered yet: `oi_trend` (open-interest history only exists as daily files; run with
 `--with-oi`), maker execution, and volatility-scaled sizing.
+
+## v2 findings (pre-registered, 2023-01 to 2026-09)
+
+**No pre-registered hypothesis passes.** All specs run through `Strategy.target_weights`, the same
+code path as the paper trader.
+
+- **H2, momentum on coins listed at least 60 days, comes closest.** Net Sharpe 0.94, positive in all
+  4 years, and 0.87 with one bar of execution delay. It **fails** the concentration rule: the top 3
+  coins produce 50.1% of its profit, against a 50% limit. Under the pre-registration a marginal fail
+  is still a fail.
+- **B0** (momentum with a 336h lookback, the v1 in-sample winner) clears every gate check, but it's
+  the reference, not a hypothesis: it was picked after looking at the data. v1's walk-forward
+  estimate for momentum was 0.49, and the gap from B0's 0.97 is roughly the cost of that selection.
+- **Most of the profit comes from 2025.** B0 made +92% in 2025 and -8% in 2024.
+- **Vol scaling (H1, H5) hurts**: it lowers Sharpe and leaves fewer profitable years.
+- **H4, BTC/ETH trend** (+35% a year, positive every year), loses to a 50/50 buy-and-hold on Sharpe
+  (0.74 vs 0.92).
+- **H3, the flipped funding signal**, is positive (0.40) but too weak and inconsistent.
+- **Maker execution adds about 0.2 Sharpe to every spec.** Fill quality is worth engineering.
+
+**Decision:** paper-trade cross-sectional momentum (`strategies/momentum_v0.toml`, the B0 logic on
+daily bars) as an **experimental** strategy, so that forward evidence starts accumulating. Don't sell
+or promote it until the forward record supports it.

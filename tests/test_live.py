@@ -49,10 +49,13 @@ def test_runner_logs_latest_bar(market, tmp_path):
     strategy = Strategy(name="carry", factors={"carry": FundingCarry(lookback=8)})
     log = SignalLog(tmp_path / "s.jsonl")
     runner = SignalRunner(strategy, source, market.symbols[:5], history_bars=200, log=log)
-    now = market.index[500]
-    record = runner.run_once(now)
-    assert pd.Timestamp(record.timestamp) == now
-    assert set(record.weights) == set(market.symbols[:5])
+    now = market.index[500] + pd.Timedelta(hours=1)  # bar 500 has just closed
+    result = runner.run_once(now)
+    record = result.record
+    assert result.status == "logged"
+    assert pd.Timestamp(record.timestamp) == market.index[500]
+    assert set(record.weights) <= set(market.symbols[:5])  # zero weights are not logged
+    assert len(record.weights) >= 4
     assert sum(abs(w) for w in record.weights.values()) == pytest.approx(1.0)
     assert source.calls[0][1] == now - pd.Timedelta(hours=200)
     assert log.verify() == 1

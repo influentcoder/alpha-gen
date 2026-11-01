@@ -1,0 +1,164 @@
+[
+  {
+    "spec": "B0",
+    "description": "Reference: Momentum(336), rank weights",
+    "gate": {
+      "sharpe": 0.9723332424591328,
+      "ann_return": 0.3194173255600045,
+      "max_drawdown": -0.3227608845722194,
+      "positive_years": 3,
+      "lag2_sharpe": 0.9584351798058975,
+      "top3_share": 0.40553201963084995,
+      "buy_hold_sharpe": NaN,
+      "sharpe>=0.5": true,
+      "positive_years>=3": true,
+      "lag2>=0.4": true,
+      "top3<50%": true,
+      "passed": true
+    },
+    "years": {
+      "2023": 0.11600027355072223,
+      "2024": -0.08206488622578273,
+      "2025": 0.919927663387972,
+      "2026": 0.24417069912721495
+    },
+    "context_2022": -0.04379363120165149,
+    "maker_sharpe": 1.1819832624575999,
+    "beta_ew": -0.04828588281617356
+  },
+  {
+    "spec": "H1",
+    "description": "Vol-scaled momentum (720h vol)",
+    "gate": {
+      "sharpe": 0.5170799792698237,
+      "ann_return": 0.12552443603328953,
+      "max_drawdown": -0.33722276150002284,
+      "positive_years": 1,
+      "lag2_sharpe": 0.5418590611435276,
+      "top3_share": 0.36970845425122534,
+      "buy_hold_sharpe": NaN,
+      "sharpe>=0.5": true,
+      "positive_years>=3": false,
+      "lag2>=0.4": true,
+      "top3<50%": true,
+      "passed": false
+    },
+    "years": {
+      "2023": -0.0028741950967112323,
+      "2024": -0.07645250269051698,
+      "2025": 0.5775413550239463,
+      "2026": -0.027412046470763556
+    },
+    "context_2022": -0.06171100226037221,
+    "maker_sharpe": 0.8134799784106309,
+    "beta_ew": -0.07866863907068032
+  },
+  {
+    "spec": "H2",
+    "description": "Momentum, seasoned universe (>= 60 days listed)",
+    "gate": {
+      "sharpe": 0.9363295668330042,
+      "ann_return": 0.2922107146558096,
+      "max_drawdown": -0.3663710213308552,
+      "positive_years": 4,
+      "lag2_sharpe": 0.8702379397266744,
+      "top3_share": 0.5013556249848313,
+      "buy_hold_sharpe": NaN,
+      "sharpe>=0.5": true,
+      "positive_years>=3": true,
+      "lag2>=0.4": true,
+      "top3<50%": false,
+      "passed": false
+    },
+    "years": {
+      "2023": 0.03948818348875813,
+      "2024": 0.01959424855641491,
+      "2025": 0.7731547574648646,
+      "2026": 0.26375313477435536
+    },
+    "context_2022": -0.12688613012370437,
+    "maker_sharpe": 1.1607238458675293,
+    "beta_ew": -0.03839549741848669
+  },
+  {
+    "spec": "H3",
+    "description": "Crowd-is-right funding: +mean(funding, 168h)",
+    "gate": {
+      "sharpe": 0.3996298135753767,
+      "ann_return": 0.11086961832539191,
+      "max_drawdown": -0.4539336032416549,
+      "positive_years": 2,
+      "lag2_sharpe": 0.3801438368094806,
+      "top3_share": 0.3570220398570385,
+      "buy_hold_sharpe": NaN,
+      "sharpe>=0.5": false,
+      "positive_years>=3": false,
+      "lag2>=0.4": false,
+      "top3<50%": true,
+      "passed": false
+    },
+    "years": {
+      "2023": -0.2165526204766685,
+      "2024": 0.16471923695108776,
+      "2025": 0.5720054138221373,
+      "2026": -0.10433502348159333
+    },
+    "context_2022": 0.2983376356861092,
+    "maker_sharpe": 0.5495283540612487,
+    "beta_ew": 0.025292450151061092
+  },
+  {
+    "spec": "H4",
+    "description": "BTC/ETH trend: 0.5 x sign(720h return) each",
+    "gate": {
+      "sharpe": 0.7445944806610761,
+      "ann_return": 0.353665879536379,
+      "max_drawdown": -0.408645920900207,
+      "positive_years": 4,
+      "lag2_sharpe": 0.6514317141651429,
+      "top3_share": 1.0,
+      "buy_hold_sharpe": 0.9187529902080281,
+      "sharpe>=0.5": true,
+      "positive_years>=3": true,
+      "lag2>=0.4": true,
+      "beats_buy_and_hold": false,
+      "passed": false
+    },
+    "years": {
+      "2023": 0.3586607957196014,
+      "2024": 0.04343383863102261,
+      "2025": 0.5878211692856795,
+      "2026": 0.3365734815289099
+    },
+    "context_2022": 0.056558938865358344,
+    "maker_sharpe": 0.8102619594018639,
+    "beta_ew": -0.0068743196120727565
+  },
+  {
+    "spec": "H5",
+    "description": "H1 + H2: vol-scaled momentum, seasoned universe",
+    "gate": {
+      "sharpe": 0.4043236971024679,
+      "ann_return": 0.09371607860849218,
+      "max_drawdown": -0.3517709112310009,
+      "positive_years": 2,
+      "lag2_sharpe": 0.40691668584296814,
+      "top3_share": 0.48196626843726087,
+      "buy_hold_sharpe": NaN,
+      "sharpe>=0.5": false,
+      "positive_years>=3": false,
+      "lag2>=0.4": true,
+      "top3<50%": true,
+      "passed": false
+    },
+    "years": {
+      "2023": -0.03179474084942728,
+      "2024": 0.03424660073188542,
+      "2025": 0.3504782259496772,
+      "2026": -0.0014306019553523286
+    },
+    "context_2022": -0.10132044416935003,
+    "maker_sharpe": 0.7189935761040369,
+    "beta_ew": -0.06689820737933948
+  }
+]

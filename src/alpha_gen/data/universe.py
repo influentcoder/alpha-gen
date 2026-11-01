@@ -10,6 +10,8 @@ from collections.abc import Iterable
 
 import pandas as pd
 
+from alpha_gen.symbols import to_binance_id
+
 # Index/stable/basket perps that are not single-asset bets.
 DEFAULT_EXCLUDE = frozenset(
     {
@@ -40,8 +42,8 @@ def top_n_membership(
     """
     if top_n < 1 or lag < 1:
         raise ValueError("top_n and lag must be >= 1")
-    excluded = set(exclude)
-    eligible = volume[[c for c in volume.columns if c not in excluded]]
+    excluded = {to_binance_id(e) for e in exclude}
+    eligible = volume[[c for c in volume.columns if to_binance_id(str(c)) not in excluded]]
     ranks = eligible.rank(axis=1, ascending=False, method="first")
     member = (ranks <= top_n).shift(lag, fill_value=False).astype(bool)
     return member.reindex(columns=volume.columns, fill_value=False)
@@ -68,3 +70,20 @@ def apply_universe(scores: pd.DataFrame, membership: pd.DataFrame) -> pd.DataFra
     member = expand_membership(membership, scores.index)
     member = member.reindex(columns=scores.columns, fill_value=False)
     return scores.where(member)
+
+
+def listing_age_mask(close: pd.DataFrame, min_age: pd.Timedelta | str) -> pd.DataFrame:
+    """True where a symbol has traded for at least ``min_age`` (since its first non-NaN close).
+
+    The first bar of a symbol is known when it happens, so this filter is causal. When the data
+    starts after a symbol's real listing, its age is understated; keep the history window longer
+    than ``min_age``.
+    """
+    age = pd.Timedelta(min_age)
+    index = close.index
+    assert isinstance(index, pd.DatetimeIndex)
+    first = close.apply(lambda col: col.first_valid_index())
+    out = {}
+    for symbol, listed in first.items():
+        out[symbol] = (index - listed >= age) if listed is not None else [False] * len(index)
+    return pd.DataFrame(out, index=index, columns=close.columns).astype(bool)

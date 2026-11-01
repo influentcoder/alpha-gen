@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 from alpha_gen.data.market import MarketData
+from alpha_gen.symbols import to_binance_id
 from alpha_gen.timeframes import timeframe_to_freq
 
 log = logging.getLogger(__name__)
@@ -100,11 +101,6 @@ def http_fetch(url: str, *, timeout: float = 30.0, retries: int = 4) -> bytes | 
 
 
 # ---------------------------------------------------------------------------------------- symbols
-def to_binance_id(symbol: str) -> str:
-    """``"BTC/USDT:USDT"`` (ccxt unified) or ``"BTCUSDT"`` -> ``"BTCUSDT"``."""
-    return symbol.split(":", 1)[0].replace("/", "").upper()
-
-
 _MULTIPLIER_PREFIXES = (("1000000", 1_000_000.0), ("1000", 1_000.0))
 
 

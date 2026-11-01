@@ -77,6 +77,7 @@ class CCXTSource:
         exchange: Any = None,
         spot_exchange: Any = None,
         exchange_config: dict[str, Any] | None = None,
+        trust_env: bool = True,
     ) -> None:
         self.exchange_id = exchange_id
         self.spot_exchange_id = spot_exchange_id
@@ -86,6 +87,7 @@ class CCXTSource:
         self.drop_incomplete = drop_incomplete
         self.limit = limit
         self._config = {"enableRateLimit": True, **(exchange_config or {})}
+        self.trust_env = trust_env
         self._exchange = exchange
         self._spot_exchange = spot_exchange
 
@@ -100,13 +102,26 @@ class CCXTSource:
         ]
         return "_".join(parts)
 
-    @staticmethod
-    def _make(exchange_id: str, config: dict[str, Any]) -> Any:
+    def _make(self, exchange_id: str, config: dict[str, Any]) -> Any:
         try:
             import ccxt
         except ImportError as exc:  # pragma: no cover - depends on optional extra
             raise ImportError("CCXTSource needs ccxt: pip install 'alpha-gen[exchange]'") from exc
-        return getattr(ccxt, exchange_id)(config)
+        exchange = getattr(ccxt, exchange_id)(config)
+        session = getattr(exchange, "session", None)
+        if self.trust_env and session is not None:
+            # ccxt disables this, which ignores HTTPS_PROXY / REQUESTS_CA_BUNDLE.
+            session.trust_env = True
+        return exchange
+
+    def list_symbols(self, quote: str = "USDT") -> list[str]:
+        """Active linear perpetual swaps quoted in ``quote`` (ccxt unified symbols)."""
+        markets = self.exchange.load_markets()
+        return sorted(
+            symbol
+            for symbol, m in markets.items()
+            if m.get("swap") and m.get("linear") and m.get("quote") == quote and m.get("active")
+        )
 
     @property
     def exchange(self) -> Any:
@@ -200,7 +215,13 @@ class CCXTSource:
         oi: dict[str, pd.Series] = {}
         spot: dict[str, pd.Series] = {}
         for symbol in symbols:
-            bars = self._ohlcv(self.exchange, symbol, timeframe, since, until)
+            try:
+                bars = self._ohlcv(self.exchange, symbol, timeframe, since, until)
+            except Exception as exc:  # one bad symbol must not kill the whole run
+                log.warning("Could not fetch OHLCV for %s: %s", symbol, exc)
+                continue
+            if bars.empty:
+                continue
             close[symbol] = bars["close"]
             volume[symbol] = bars["volume"] * bars["close"]  # quote-currency volume
             if self.include_funding:

@@ -75,3 +75,16 @@ def rebalance(weights: pd.DataFrame, every: str) -> pd.DataFrame:
 def smooth(weights: pd.DataFrame, halflife: float) -> pd.DataFrame:
     """Exponentially smooth weights through time to cut turnover (uses past rows only)."""
     return weights.ewm(halflife=halflife, adjust=False).mean()
+
+
+def time_series_trend(
+    close: pd.DataFrame, lookback: int, *, weight: float = 0.5, symbols: list[str] | None = None
+) -> pd.DataFrame:
+    """Directional trend: ``weight * sign(close[t] / close[t - lookback] - 1)`` per symbol.
+
+    Unlike the cross-sectional books this is *not* market neutral: it is long assets in an
+    uptrend and short those in a downtrend.
+    """
+    panel = close[symbols] if symbols is not None else close
+    trend = np.sign(panel / panel.shift(lookback) - 1.0)
+    return (trend * weight).reindex(columns=close.columns).fillna(0.0)
