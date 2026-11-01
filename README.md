@@ -43,7 +43,9 @@ from alpha_gen.factors import FundingCarry, Momentum
 
 source = CachedSource(CCXTSource("binanceusdm"))
 end = pd.Timestamp.now(tz="UTC").floor("h")
-data = source.fetch(["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT"], end - pd.Timedelta(days=90), end)
+data = source.fetch(
+    ["BTC/USDT:USDT", "ETH/USDT:USDT", "SOL/USDT:USDT"], end - pd.Timedelta(days=90), end
+)
 
 print(evaluate_factor(FundingCarry(lookback=24), data))
 
@@ -66,6 +68,7 @@ print(run_backtest(strategy.target_weights(data), data, CostModel(fee_bps=4), la
 ```python
 from dataclasses import dataclass
 from alpha_gen.factors import Factor, register
+
 
 @register
 @dataclass(frozen=True)

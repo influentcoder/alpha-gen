@@ -9,6 +9,8 @@ from alpha_gen.signals import (
     cross_sectional_rank,
     cross_sectional_zscore,
     ic_weighted_combine,
+    rebalance,
+    smooth,
     to_weights,
 )
 
@@ -77,3 +79,18 @@ def test_strategy(market):
     assert weights.shape == market.close.shape
     assert weights.iloc[-1].abs().sum() == pytest.approx(1.0)
     assert strategy.describe()["factors"]["carry"] == "funding_carry(lookback=72)"
+
+
+def test_rebalance_holds_between_schedule_bars():
+    idx = pd.date_range("2024-01-01 06:00", periods=12, freq="1h", tz="UTC")
+    w = pd.DataFrame({"A": np.arange(12.0)}, index=idx)
+    held = rebalance(w, "8h")
+    assert held["A"].iloc[:2].tolist() == [0.0, 0.0]  # before the first 08:00 rebalance
+    assert held["A"].iloc[2:].tolist() == [2.0] * 8 + [10.0, 10.0]  # 08:00 and 16:00
+
+
+def test_rebalance_and_smooth_do_not_look_ahead(market):
+    w = to_weights(Momentum(lookback=24)(market))
+    cutoff = market.index[300]
+    for fn in (lambda x: rebalance(x, "1D"), lambda x: smooth(x, 12)):
+        pd.testing.assert_frame_equal(fn(w).loc[:cutoff], fn(w.loc[:cutoff]))

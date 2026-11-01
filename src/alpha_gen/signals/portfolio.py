@@ -57,3 +57,21 @@ def volatility_target(
     )
     scale = (target / realised.replace(0.0, np.nan)).clip(upper=max_leverage).fillna(1.0)
     return weights.mul(scale, axis=0)
+
+
+def rebalance(weights: pd.DataFrame, every: str) -> pd.DataFrame:
+    """Only trade on bars aligned to ``every`` (e.g. ``"8h"``, ``"1D"``); hold in between.
+
+    A bar is a rebalance bar when its timestamp is a multiple of ``every`` since the epoch, so
+    ``"8h"`` on hourly data trades at 00:00, 08:00 and 16:00 UTC (the Binance funding times).
+    """
+    index = weights.index
+    assert isinstance(index, pd.DatetimeIndex)
+    on_schedule = index == index.floor(every)
+    held = weights.where(pd.Series(on_schedule, index=index), axis=0)
+    return held.ffill().fillna(0.0)
+
+
+def smooth(weights: pd.DataFrame, halflife: float) -> pd.DataFrame:
+    """Exponentially smooth weights through time to cut turnover (uses past rows only)."""
+    return weights.ewm(halflife=halflife, adjust=False).mean()

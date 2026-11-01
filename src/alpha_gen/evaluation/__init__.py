@@ -11,13 +11,20 @@ from alpha_gen.evaluation.metrics import (
     turnover,
 )
 from alpha_gen.evaluation.report import FactorReport, evaluate_factor
-from alpha_gen.evaluation.walk_forward import walk_forward_splits
+from alpha_gen.evaluation.walk_forward import (
+    WalkForwardResult,
+    annualized_sharpe,
+    walk_forward_select,
+    walk_forward_splits,
+)
 
 __all__ = [
     "BacktestResult",
     "CostModel",
     "FactorReport",
     "ICSummary",
+    "WalkForwardResult",
+    "annualized_sharpe",
     "evaluate_factor",
     "ic_decay",
     "ic_summary",
@@ -26,5 +33,6 @@ __all__ = [
     "performance_summary",
     "run_backtest",
     "turnover",
+    "walk_forward_select",
     "walk_forward_splits",
 ]

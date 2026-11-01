@@ -9,6 +9,7 @@ from alpha_gen.evaluation import (
     max_drawdown,
     run_backtest,
     turnover,
+    walk_forward_select,
     walk_forward_splits,
 )
 from alpha_gen.factors import FundingCarry
@@ -72,3 +73,31 @@ def test_evaluate_factor_report(market):
     assert list(report.decay.index) == [1, 4]
     assert report.to_dict()["backtest"]["gross_sharpe"] > 0
     assert "funding_carry" in str(report)
+
+
+def test_walk_forward_select_uses_only_training_data():
+    idx = pd.date_range("2024-01-01", periods=40, freq="1D", tz="UTC")
+    noise = np.random.default_rng(0).normal(0, 0.001, 40)
+    # "early" is great for 20 days then terrible; "late" is the reverse.
+    early = pd.Series(np.r_[np.full(20, 0.01), np.full(20, -0.01)] + noise, index=idx)
+    late = pd.Series(np.r_[np.full(20, -0.01), np.full(20, 0.01)] + noise, index=idx)
+    splits = walk_forward_splits(idx, train_size=10, test_size=10)
+    result = walk_forward_select({"early": early, "late": late}, splits, periods_per_year=365)
+    assert result.choices["chosen"].tolist() == ["early", "early", "late"]
+    # The switch lags the regime change by one window: the test after it loses money.
+    assert result.returns.loc["2024-01-21":"2024-01-30"].mean() < 0
+    assert result.returns.index.is_monotonic_increasing and len(result.returns) == 30
+
+
+def test_evaluate_factor_with_universe_and_rebalance(market):
+    idx = pd.date_range(market.index[0].floor("D"), market.index[-1], freq="MS")
+    member = pd.DataFrame(False, index=idx, columns=market.symbols)
+    member[market.symbols[:5]] = True
+    report = evaluate_factor(
+        FundingCarry(lookback=8), market, universe=member, rebalance_every="8h"
+    )
+    traded = report.backtest.positions.abs().sum()
+    assert traded[market.symbols[5:]].sum() == 0
+    assert (traded[market.symbols[:5]] > 0).all()
+    hours = report.backtest.positions.diff().abs().sum(axis=1)
+    assert set(hours[hours > 0].index.hour) <= {1, 9, 17}  # held from the bar after 0/8/16h

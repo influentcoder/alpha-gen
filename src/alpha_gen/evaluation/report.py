@@ -9,10 +9,11 @@ from typing import Any
 import pandas as pd
 
 from alpha_gen.data.market import MarketData
+from alpha_gen.data.universe import apply_universe
 from alpha_gen.evaluation.backtest import BacktestResult, CostModel, run_backtest
 from alpha_gen.evaluation.metrics import ICSummary, ic_decay, ic_summary, information_coefficient
 from alpha_gen.factors.base import Factor
-from alpha_gen.signals.portfolio import to_weights
+from alpha_gen.signals.portfolio import rebalance, to_weights
 from alpha_gen.signals.transforms import cross_sectional_rank
 
 
@@ -60,16 +61,27 @@ def evaluate_factor(
     horizon: int = 1,
     decay_horizons: Sequence[int] = (1, 2, 4, 8, 24, 72),
     costs: CostModel | None = None,
+    universe: pd.DataFrame | None = None,
+    rebalance_every: str | None = None,
 ) -> FactorReport:
     """Evaluate a factor (or a precomputed score panel) on ``data``.
 
-    The backtest trades a dollar-neutral rank portfolio rebalanced every bar, which is the
-    *worst case* for costs; real strategies usually smooth or rebalance less often.
+    The backtest trades a dollar-neutral rank portfolio. By default it rebalances every bar,
+    which is the *worst case* for costs; pass ``rebalance_every="8h"`` (or ``"1D"``) to trade on
+    a schedule instead.
+
+    Args:
+        universe: Optional period membership (see :func:`alpha_gen.data.universe.top_n_membership`);
+            scores outside the universe are ignored for both IC and the backtest.
     """
     scores = factor(data) if isinstance(factor, Factor) else factor
+    if universe is not None:
+        scores = apply_universe(scores, universe)
     label = name or (factor.label if isinstance(factor, Factor) else "signal")
     ic = information_coefficient(scores, data.forward_returns(horizon))
     weights = to_weights(cross_sectional_rank(scores))
+    if rebalance_every is not None:
+        weights = rebalance(weights, rebalance_every)
     return FactorReport(
         name=label,
         horizon=horizon,

@@ -39,7 +39,7 @@ class MarketData:
 
     Attributes:
         close: Perp close prices. Defines the index and the symbol universe.
-        volume: Bar volume (optional).
+        volume: Bar volume in **quote currency** (USDT), comparable across symbols (optional).
         funding_rate: Funding rate **at settlement bars only** (NaN between settlements). Factors
             usually forward-fill it; the backtester charges it only where it is set.
         open_interest: Open interest, ideally in quote currency (optional).

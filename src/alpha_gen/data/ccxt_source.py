@@ -201,7 +201,8 @@ class CCXTSource:
         spot: dict[str, pd.Series] = {}
         for symbol in symbols:
             bars = self._ohlcv(self.exchange, symbol, timeframe, since, until)
-            close[symbol], volume[symbol] = bars["close"], bars["volume"]
+            close[symbol] = bars["close"]
+            volume[symbol] = bars["volume"] * bars["close"]  # quote-currency volume
             if self.include_funding:
                 funding[symbol] = self._safe("funding", symbol, self._funding, since, until, freq)
             if self.include_open_interest:
