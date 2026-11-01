@@ -31,7 +31,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from alpha_gen.data import apply_universe, candidates, top_n_membership
+from alpha_gen.data import (
+    CachedSource,
+    apply_universe,
+    candidates,
+    expand_membership,
+    top_n_membership,
+)
 from alpha_gen.data.binance_vision import BinanceVisionSource, list_perp_symbols
 from alpha_gen.evaluation import (
     CostModel,
@@ -64,6 +70,7 @@ COSTS = CostModel(fee_bps=5.0, slippage_bps=3.0)  # Binance VIP0 taker + conserv
 REBALANCE = ("8h", "1D")
 TRAIN_BARS, TEST_BARS, GAP_BARS = 365 * 24, 91 * 24, 24
 GATE_SHARPE, GATE_YEARS = 0.5, 3
+BENCHMARK = "BTCUSDT"
 
 FAMILIES: dict[str, list[Factor]] = {
     "funding_carry": [FundingCarry(lookback=n) for n in (24, 72, 168)],
@@ -87,6 +94,7 @@ class Variant:
     gross: pd.Series
     summary: dict[str, float]
     ic: dict[str, float]
+    risk: dict[str, float]
 
 
 def load(cache_dir: Path, with_oi: bool) -> tuple[pd.DataFrame, object, object | None]:
@@ -98,7 +106,7 @@ def load(cache_dir: Path, with_oi: bool) -> tuple[pd.DataFrame, object, object |
     names = candidates(membership)
     membership = membership[names]
     log.info("%d symbols are in the top %d at least once", len(names), TOP_N)
-    data = src.fetch(names, START, END, TIMEFRAME)
+    data = CachedSource(src, cache_dir / "panels").fetch(names, START, END, TIMEFRAME)
     oi_data = None
     if with_oi:
         oi_start = END - pd.DateOffset(years=1)
@@ -107,7 +115,34 @@ def load(cache_dir: Path, with_oi: bool) -> tuple[pd.DataFrame, object, object |
     return membership, data, oi_data
 
 
-def run_variant(family: str, factor: Factor, data, membership, freq: str) -> Variant:
+def beta(strategy: pd.Series, market: pd.Series) -> float:
+    joined = pd.concat([strategy, market], axis=1).dropna()
+    var = float(joined.iloc[:, 1].var())
+    return float(joined.cov().iloc[0, 1] / var) if var > 0 else float("nan")
+
+
+def risk_profile(weights: pd.DataFrame, bt, data, market: dict[str, pd.Series]) -> dict[str, float]:
+    """Where the PnL comes from: market beta, long vs short leg, concentration, delay stress."""
+    returns = data.returns().fillna(0.0)
+    held = bt.positions
+    long_pnl = float((held.clip(lower=0) * returns).sum().sum())
+    short_pnl = float((held.clip(upper=0) * returns).sum().sum())
+    by_symbol = (held * returns).sum().sort_values()
+    total = float(by_symbol.sum())
+    lag2 = run_backtest(weights, data, COSTS, lag=2).summary().get("sharpe", float("nan"))
+    return {
+        "beta_ew": beta(bt.net_returns, market["ew"]),
+        "beta_btc": beta(bt.net_returns, market["btc"]),
+        "long_leg": long_pnl,
+        "short_leg": short_pnl,
+        "top3_share": float(by_symbol.tail(3).sum() / total) if total > 0 else float("nan"),
+        "lag2_sharpe": lag2,
+    }
+
+
+def run_variant(
+    family: str, factor: Factor, data, membership, freq: str, market: dict[str, pd.Series]
+) -> Variant:
     scores = apply_universe(factor(data), membership)
     weights = rebalance(to_weights(cross_sectional_rank(scores)), freq)
     bt = run_backtest(weights, data, COSTS)
@@ -121,6 +156,7 @@ def run_variant(family: str, factor: Factor, data, membership, freq: str) -> Var
         gross=bt.gross_returns,
         summary=bt.summary(),
         ic={"horizon": horizon, "mean": ic.mean, "ir": ic.ir, "hit_rate": ic.hit_rate},
+        risk=risk_profile(weights, bt, data, market),
     )
 
 
@@ -149,18 +185,29 @@ def main() -> None:
 
     membership, data, oi_data = load(args.cache_dir, args.with_oi)
     log.info("Loaded %s in %.0fs", data, time.time() - t0)
+    mask = expand_membership(membership, data.index).reindex(columns=data.symbols, fill_value=False)
+    in_universe = int(mask.to_numpy().sum())
+
+    def coverage_of(panel: pd.DataFrame) -> float:
+        return float(panel.where(mask).notna().to_numpy().sum() / in_universe)
+
     coverage = {
-        "funding": float(
-            apply_universe(data.funding_rate.ffill(), membership).notna().mean().mean()
-        ),
-        "spot": float(apply_universe(data.spot_close, membership).notna().mean().mean()),
+        "close": coverage_of(data.close),
+        "funding": coverage_of(data.funding_rate.ffill(limit=8)),
+        "spot": coverage_of(data.spot_close),
     }
+
+    # Benchmarks: equal-weight long universe (daily rebalanced) and BTC buy-and-hold.
+    ew_weights = mask.astype(float).div(mask.sum(axis=1).replace(0, np.nan), axis=0).fillna(0.0)
+    long_bt = run_backtest(rebalance(ew_weights, "1D"), data, COSTS)
+    btc = data.returns()[BENCHMARK].fillna(0.0) if BENCHMARK in data.symbols else None
+    market = {"ew": long_bt.gross_returns, "btc": btc if btc is not None else long_bt.gross_returns}
 
     variants: list[Variant] = []
     for family, factors in FAMILIES.items():
         for factor in factors:
             for freq in REBALANCE:
-                variants.append(run_variant(family, factor, data, membership, freq))
+                variants.append(run_variant(family, factor, data, membership, freq, market))
                 log.info(
                     "%-40s net sharpe %s", variants[-1].label, fmt(variants[-1].summary["sharpe"])
                 )
@@ -181,16 +228,9 @@ def main() -> None:
                 bt.gross_returns,
                 bt.summary(),
                 {},
+                risk_profile(weights, bt, data, market),
             )
         )
-
-    # Benchmarks (context only): equal-weight long universe and BTC buy-and-hold.
-    in_universe = apply_universe(data.close * 0 + 1.0, membership).fillna(0.0)
-    long_w = rebalance(
-        in_universe.div(in_universe.sum(axis=1).replace(0, np.nan), axis=0).fillna(0), "1D"
-    )
-    long_bt = run_backtest(long_w, data, COSTS)
-    btc = data.returns()["BTCUSDT"].fillna(0.0) if "BTCUSDT" in data.symbols else None
 
     # Walk-forward selection within each family.
     splits = list(walk_forward_splits(data.index, TRAIN_BARS, TEST_BARS, gap=GAP_BARS))
@@ -224,7 +264,8 @@ def main() -> None:
     if oi_data is not None:
         for factor in OI_FAMILY["oi_trend"]:
             for freq in REBALANCE:
-                v = run_variant("oi_trend", factor, oi_data, membership, freq)
+                oi_market = {k: m.reindex(oi_data.index) for k, m in market.items()}
+                v = run_variant("oi_trend", factor, oi_data, membership, freq, oi_market)
                 oi_results.append({"label": v.label, "summary": v.summary, "ic": v.ic})
 
     write_report(
@@ -270,8 +311,8 @@ def write_report(
         f"(data.binance.vision).",
         f"- Universe: monthly top {TOP_N} by previous-month quote volume, from every perp ever "
         f"listed; {membership.shape[1]} distinct symbols over the period.",
-        f"- Coverage inside the universe: funding {coverage['funding']:.0%}, "
-        f"spot price {coverage['spot']:.0%}.",
+        f"- Coverage of universe symbol-hours: price {coverage['close']:.0%}, funding "
+        f"{coverage['funding']:.0%}, spot price {coverage['spot']:.0%}.",
         "- Portfolio: dollar-neutral rank weights, gross 1.0, rebalanced "
         f"{' or '.join(REBALANCE)}.",
         f"- Costs: {COSTS.fee_bps:g} bps fee + {COSTS.slippage_bps:g} bps slippage per unit "
@@ -328,6 +369,25 @@ def write_report(
             f"{fmt(s.get('ann_funding'), True)} | {v.ic.get('mean', float('nan')):+.4f} | "
             f"{fmt(v.ic.get('ir', float('nan')))} |"
         )
+    lines += [
+        "",
+        "## Where the PnL comes from (full period)",
+        "",
+        "Beta is to the equal-weight long universe (EW) and to BTC. A dollar-neutral book with "
+        "negative beta is partly a disguised short-the-market bet. Leg PnL is the summed price "
+        "return of the long and short positions. Top-3 share is the fraction of price PnL from "
+        "the three best symbols. Lag 2 adds one bar of execution delay.",
+        "",
+        "| Variant | Beta EW | Beta BTC | Long leg | Short leg | Top-3 share | Lag-2 net Sharpe |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for v in sorted(variants, key=lambda v: -np.nan_to_num(v.summary.get("sharpe", -9), nan=-9)):
+        k = v.risk
+        lines.append(
+            f"| {v.label} | {fmt(k['beta_ew'])} | {fmt(k['beta_btc'])} | "
+            f"{fmt(k['long_leg'], True)} | {fmt(k['short_leg'], True)} | "
+            f"{fmt(k['top3_share'], True)} | {fmt(k['lag2_sharpe'])} |"
+        )
     lb = long_bt.summary()
     lines += [
         "",
@@ -381,6 +441,7 @@ def write_report(
                 "family": v.family,
                 "summary": v.summary,
                 "ic": v.ic,
+                "risk": v.risk,
                 "years": yearly_returns(v.net),
             }
             for v in variants
