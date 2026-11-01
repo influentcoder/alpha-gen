@@ -163,6 +163,24 @@ def test_fetch_stitches_months_and_floors_funding(tmp_path):
     }
 
 
+def test_funding_settlements_are_summed_per_bar(tmp_path):
+    k = f"{BASE}/futures/um/monthly/klines/BTCUSDT/1d/BTCUSDT-1d"
+    f = f"{BASE}/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate"
+    day_ms = int(pd.Timestamp("2024-01-01", tz=UTC).value // 1_000_000)
+    archive = FakeArchive(
+        {
+            f"{k}-2024-01.zip": _zip(f"{day_ms},1,1,1,1,1,0,1,1,0,0,0\n"),
+            f"{f}-2024-01.zip": funding_zip(
+                ["2024-01-01 00:00", "2024-01-01 08:00", "2024-01-01 16:00"], 0.0001
+            ),
+        }
+    )
+    data = source(tmp_path, archive).fetch(
+        ["BTCUSDT"], pd.Timestamp("2024-01-01"), pd.Timestamp("2024-01-02"), "1d"
+    )
+    assert data.funding_rate["BTCUSDT"].iloc[0] == pytest.approx(0.0003)
+
+
 def test_fetch_uses_cache_on_second_call(tmp_path):
     archive = btc_archive()
     src = source(tmp_path, archive)

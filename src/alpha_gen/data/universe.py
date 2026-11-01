@@ -12,8 +12,30 @@ import pandas as pd
 
 from alpha_gen.symbols import to_binance_id
 
-# Index/stable/basket perps that are not single-asset bets.
-DEFAULT_EXCLUDE = frozenset(
+# Perps that are not single crypto-asset bets: stablecoins, index/basket perps, and tokenised
+# metals/stocks (Binance's archive has no asset-class field, so they are listed by name; the
+# OKX source filters by instrument category instead).
+NON_CRYPTO = frozenset(
+    {
+        "XAUUSDT",
+        "XAGUSDT",
+        "XAUTUSDT",
+        "PAXGUSDT",
+        "AAPLUSDT",
+        "AMZNUSDT",
+        "COINUSDT",
+        "CRCLUSDT",
+        "GOOGLUSDT",
+        "HOODUSDT",
+        "METAUSDT",
+        "MSTRUSDT",
+        "NVDAUSDT",
+        "QQQUSDT",
+        "SPYUSDT",
+        "TSLAUSDT",
+    }
+)
+DEFAULT_EXCLUDE = NON_CRYPTO | frozenset(
     {
         "USDCUSDT",
         "TUSDUSDT",

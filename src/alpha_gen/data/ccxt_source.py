@@ -35,6 +35,15 @@ def _empty_series() -> pd.Series:
     return pd.Series(dtype=float, index=pd.DatetimeIndex([], tz="UTC"))
 
 
+def is_crypto_market(market: dict[str, Any]) -> bool:
+    """False for markets an exchange flags as stocks/commodities or pre-market (OKX metadata)."""
+    info = market.get("info") or {}
+    category = info.get("instCategory")
+    if category is not None and str(category) != "1":
+        return False
+    return info.get("ruleType") != "pre_market"
+
+
 def spot_symbol(perp_symbol: str) -> str:
     """``"BTC/USDT:USDT"`` -> ``"BTC/USDT"``."""
     return perp_symbol.split(":", 1)[0]
@@ -78,6 +87,7 @@ class CCXTSource:
         spot_exchange: Any = None,
         exchange_config: dict[str, Any] | None = None,
         trust_env: bool = True,
+        quote: str = "USDT",
     ) -> None:
         self.exchange_id = exchange_id
         self.spot_exchange_id = spot_exchange_id
@@ -88,6 +98,7 @@ class CCXTSource:
         self.limit = limit
         self._config = {"enableRateLimit": True, **(exchange_config or {})}
         self.trust_env = trust_env
+        self.quote = quote
         self._exchange = exchange
         self._spot_exchange = spot_exchange
 
@@ -114,13 +125,22 @@ class CCXTSource:
             session.trust_env = True
         return exchange
 
-    def list_symbols(self, quote: str = "USDT") -> list[str]:
-        """Active linear perpetual swaps quoted in ``quote`` (ccxt unified symbols)."""
+    def list_symbols(self, quote: str | None = None, *, crypto_only: bool = True) -> list[str]:
+        """Active linear perpetual swaps quoted in ``quote`` (ccxt unified symbols).
+
+        With ``crypto_only`` (default), drops instruments an exchange marks as non-crypto (OKX
+        lists tokenised stocks and commodities as USDT swaps) and pre-market listings.
+        """
+        quote = quote or self.quote
         markets = self.exchange.load_markets()
         return sorted(
             symbol
             for symbol, m in markets.items()
-            if m.get("swap") and m.get("linear") and m.get("quote") == quote and m.get("active")
+            if m.get("swap")
+            and m.get("linear")
+            and m.get("quote") == quote
+            and m.get("active")
+            and (not crypto_only or is_crypto_market(m))
         )
 
     @property
@@ -158,7 +178,8 @@ class CCXTSource:
             until,
             ts_of=lambda r: r.get("timestamp"),
         )
-        return self._series(rows, "fundingRate", freq, how="last")
+        # Several settlements can fall in one bar (e.g. 3 per daily bar): they add up.
+        return self._series(rows, "fundingRate", freq, how="sum")
 
     def _open_interest(
         self, symbol: str, timeframe: str, since: int, until: int, freq: str

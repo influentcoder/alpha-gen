@@ -102,24 +102,31 @@ def track_record(records: Sequence[SignalRecord], strategy: str) -> pd.DataFrame
     return frame
 
 
+MIN_PERIODS_FOR_RATIOS = 30
+
+
 def track_summary(record: pd.DataFrame, timeframe: str) -> dict[str, Any]:
-    """Headline statistics of a track record (returns per record ~ per rebalance)."""
+    """Headline statistics of a track record (returns per record ~ per rebalance).
+
+    Annualised return, volatility and Sharpe are NaN until there are
+    ``MIN_PERIODS_FOR_RATIOS`` periods: a Sharpe from a handful of days is noise.
+    """
     if record.empty:
         return {"periods": 0}
     net = record["net"]
     bars = float(record["bars"].mean()) or 1.0
     ppy = periods_per_year(timeframe) / bars
-    std = float(net.std()) if len(net) > 1 else float("nan")
+    enough = len(net) >= MIN_PERIODS_FOR_RATIOS
+    std = float(net.std()) if enough else float("nan")
+    mean = float(net.mean()) if enough else float("nan")
     return {
         "periods": len(net),
         "start": str(record.index[0]),
         "end": str(record.index[-1]),
         "total_return": float(record["equity"].iloc[-1] - 1.0),
-        "ann_return": float(net.mean() * ppy),
+        "ann_return": mean * ppy,
         "ann_vol": float(std * np.sqrt(ppy)) if np.isfinite(std) else float("nan"),
-        "sharpe": float(net.mean() / std * np.sqrt(ppy))
-        if std and np.isfinite(std)
-        else float("nan"),
+        "sharpe": mean / std * float(np.sqrt(ppy)) if std and np.isfinite(std) else float("nan"),
         "max_drawdown": max_drawdown(net),
         "total_costs": float(record["costs"].sum()),
         "total_funding": float(record["funding"].sum()),

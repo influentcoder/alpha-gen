@@ -9,4 +9,3 @@ build/
 *.egg-info/
 .cache/
 data_cache/
-signals/*.jsonl

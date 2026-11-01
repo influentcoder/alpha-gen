@@ -14,7 +14,7 @@ data  ──▶  factors  ──▶  signals  ──▶  evaluation (research)
 | Factors | `alpha_gen.factors` | Registry of score functions. A higher score means a higher expected return. Built in: `funding_carry`, `basis_carry`, `oi_trend`, `momentum`, `reversal`, `low_vol`. |
 | Signals | `alpha_gen.signals` | Cross-sectional z-score and rank, winsorising, static or IC-weighted blending (no look-ahead), dollar-neutral sizing, volatility targeting, and `Strategy` bundles. |
 | Evaluation | `alpha_gen.evaluation` | Rank IC, IC decay, turnover, a backtest with fees, slippage and funding, walk-forward splits, and `evaluate_factor` tear sheets. |
-| Live | `alpha_gen.live` | `SignalRunner` computes weights for the last complete bar. `SignalLog` is an append-only JSONL log where each record carries the previous record's hash, so the track record is tamper-evident. |
+| Live | `alpha_gen.live` | TOML strategy configs and an idempotent `SignalRunner` that refuses stale data. `SignalLog` is an append-only log where each record carries the previous record's hash and the paper P&L realised since the last signal, so the log *is* a tamper-evident track record. Also renders a static track-record page. |
 
 ## Install
 
@@ -73,12 +73,40 @@ data = src.fetch(candidates(universe), "2022-01-01", "2026-10-01", "1h")
 `research/real_data_v1.py` runs the full validation protocol: survivorship-free universe, costs,
 funding, and walk-forward out-of-sample selection. It writes `research/reports/real_data_v1.md`.
 
+## Live paper trading
+
+Strategies live in `strategies/*.toml`. Each record in the log stores the config's SHA-256, so any
+edit is visible. The [paper-trading workflow](.github/workflows/paper-trading.yml) runs every config
+daily at 00:23 UTC against OKX (reachable from US-hosted GitHub runners). It appends to
+`track/signals.jsonl`, rebuilds `track/site/index.html`, and commits both. Scheduled workflows only
+run on the default branch.
+
+```bash
+uv run alpha-gen run strategies/momentum_v0.toml --log track/signals.jsonl   # idempotent
+uv run alpha-gen track --log track/signals.jsonl --out track/site            # page + JSON
+uv run alpha-gen verify-log track/signals.jsonl
+```
+
+Both current strategies are **experimental**: neither passed its research gate cleanly (see
+[research/README.md](research/README.md)). The track record exists to find out whether they hold up
+on data nobody has seen yet.
+
+Guarantees, each covered by tests:
+
+- **Live equals backtest.** Running a strategy day by day reproduces the one-shot backtest's
+  weights and P&L (`tests/test_live_pipeline.py`).
+- **Stale data is refused.** If the exchange's newest complete bar is too old, the run fails
+  instead of logging a signal.
+- **Crypto only.** Instruments the exchange marks as stocks, commodities or pre-market are
+  dropped (OKX lists over 200 stock perps).
+
 ## Conventions (read before adding factors)
 
 - Panels are wide DataFrames: a UTC index of **bar open times**, with one column per ccxt perp symbol.
   A value labelled `t` is treated as known at the close of bar `t`.
-- `funding_rate` is set only on settlement bars and is NaN elsewhere. Factors forward-fill it, and
-  the backtester charges it only on those bars (longs pay positive funding).
+- `funding_rate` is the total funding settled within each bar: three 8h settlements add up in a
+  daily bar. It's NaN in bars with no settlement. Factors forward-fill it, and the backtester
+  charges it only where it's set (longs pay positive funding).
 - `run_backtest(weights, data, lag=1)` holds `weights[t]` over bar `t+1`. `lag=0` is rejected.
 - Every registered factor is tested automatically for look-ahead: its scores must not change when
   future data is removed. Register a new factor with `@register`, and it is covered by that test.
@@ -122,7 +150,7 @@ uv run pytest -m network   # opt-in smoke test against the live Binance archive
 - [ ] Liquidations and order-book data adapters (websocket)
 - [ ] Hyperliquid / OKX / Bybit sources, plus universe selection by liquidity
 - [ ] Walk-forward parameter search, and adjusting t-statistics for overlapping horizons
-- [ ] Scheduled runner and a public track-record page built from the signal log
+- [x] Scheduled runner and a public track-record page built from the signal log
 - [ ] Hosted signal/factor API (paid tier)
 
 > Not investment advice. Backtests on synthetic or historical data don't guarantee future results.

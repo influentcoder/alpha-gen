@@ -466,11 +466,11 @@ class BinanceVisionSource:
             if self.include_funding:
                 rates = self._collect(loaded, FUNDING, binance_id)
                 if rates is not None:
-                    funding[symbol] = _floor_last(rates["funding_rate"], freq)
+                    funding[symbol] = _floor(rates["funding_rate"], freq, "sum")
             if self.include_open_interest:
                 metrics = self._collect(loaded, METRICS, binance_id)
                 if metrics is not None:
-                    oi[symbol] = _floor_last(metrics["open_interest_value"], freq)
+                    oi[symbol] = _floor(metrics["open_interest_value"], freq, "last")
             if self.include_spot:
                 series = self._spot_close(binance_id, bars["close"], loaded, start, end, timeframe)
                 if series is not None:
@@ -526,7 +526,11 @@ def _utc(ts: pd.Timestamp | str) -> pd.Timestamp:
     return stamp.tz_localize("UTC") if stamp.tz is None else stamp.tz_convert("UTC")
 
 
-def _floor_last(series: pd.Series, freq: str) -> pd.Series:
-    """Snap timestamps to the bar they fall in, keeping the last value per bar."""
+def _floor(series: pd.Series, freq: str, how: str) -> pd.Series:
+    """Snap timestamps to the bar they fall in and aggregate per bar.
+
+    Use ``"sum"`` for flows such as funding (three 8h settlements make one daily funding) and
+    ``"last"`` for levels such as open interest.
+    """
     floored = series.set_axis(pd.DatetimeIndex(series.index).floor(freq), axis=0)
-    return floored.groupby(level=0).last()
+    return floored.groupby(level=0).agg(how)

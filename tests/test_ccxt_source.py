@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from alpha_gen.data.ccxt_source import CCXTSource, paginate, spot_symbol
 
@@ -46,6 +47,22 @@ def test_fetch_builds_market_data():
     assert data.funding_rate["BTC/USDT:USDT"].iloc[0] == 0.0001
     # unsupported OI endpoint degrades to NaN instead of failing
     assert data.open_interest["BTC/USDT:USDT"].isna().all()
+
+
+def test_funding_settlements_are_summed_per_daily_bar():
+    class Daily(FakeExchange):
+        def __init__(self):
+            super().__init__()
+            self.bars = [[T0 + d * 24 * H, 1, 1, 1, 100, 10] for d in range(3)]
+
+        def fetch_funding_rate_history(self, symbol, since=None, limit=None):
+            rows = [{"timestamp": T0 + i * 8 * H, "fundingRate": 0.0001} for i in range(9)]
+            return [r for r in rows if r["timestamp"] >= since]
+
+    source = CCXTSource(exchange=Daily(), drop_incomplete=False, include_open_interest=False)
+    start = pd.Timestamp("2024-01-01", tz="UTC")
+    data = source.fetch(["BTC/USDT:USDT"], start, start + pd.Timedelta(days=3), "1d")
+    assert data.funding_rate["BTC/USDT:USDT"].tolist() == pytest.approx([0.0003] * 3)
 
 
 def test_spot_symbol():

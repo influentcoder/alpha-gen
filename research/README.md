@@ -57,6 +57,29 @@ code path as the paper trader.
 - **H3, the flipped funding signal**, is positive (0.40) but too weak and inconsistent.
 - **Maker execution adds about 0.2 Sharpe to every spec.** Fill quality is worth engineering.
 
-**Decision:** paper-trade cross-sectional momentum (`strategies/momentum_v0.toml`, the B0 logic on
-daily bars) as an **experimental** strategy, so that forward evidence starts accumulating. Don't sell
-or promote it until the forward record supports it.
+### Sensitivity check (post-hoc): non-crypto perps excluded
+
+After the v2 run, the live pipeline showed that exchanges list tokenised metals and stocks as USDT
+perps. The research universe had included gold and silver (XAUUSDT, XAGUSDT, PAXGUSDT) in 21 of
+1,710 slots, all between 2025-11 and 2026-09. With them excluded
+([`reports/sensitivity_non_crypto_excluded/v2.md`](reports/sensitivity_non_crypto_excluded/v2.md)):
+
+| Spec | Net Sharpe | Positive years | Lag-2 Sharpe | Top-3 share | Gate |
+|---|---|---|---|---|---|
+| B0 (reference) | +1.07 | 3/4 | +1.06 | 37.8% | pass |
+| H2 | +1.04 | 4/4 | +0.98 | 46.5% | pass |
+| H5 | +0.49 | 3/4 | +0.51 | 45.2% | fail (Sharpe) |
+
+**This doesn't overturn the pre-registered result.** The universe fix came after the results were
+seen, and it flips H2's verdict: that's exactly the kind of forking path pre-registration exists to
+expose. What it does say is that H2's fail hinged on about 1% of universe slots, which makes H2 the
+strongest candidate for forward testing.
+
+**Decision:** paper-trade two **experimental** strategies so that forward evidence starts
+accumulating:
+
+- `strategies/momentum_v0.toml`: B0
+- `strategies/momentum_seasoned_v0.toml`: H2
+
+Both run on OKX daily bars, crypto-only. Don't sell or promote either until the forward record
+supports it.

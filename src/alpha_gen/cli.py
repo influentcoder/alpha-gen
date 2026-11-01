@@ -81,6 +81,77 @@ def cmd_verify_log(args: argparse.Namespace) -> None:
     print(f"OK: {count} records" + (f", head {last.hash}" if last else ""))
 
 
+def _live_runner(config_path: str, log_path: str) -> Any:
+    from alpha_gen.data.ccxt_source import CCXTSource
+    from alpha_gen.live.config import load_config
+    from alpha_gen.live.runner import SignalRunner
+
+    cfg = load_config(config_path)
+    signals = CCXTSource(
+        cfg.exchange,
+        include_funding=False,
+        include_open_interest=False,
+        exchange_config=cfg.source_options,
+        quote=cfg.quote,
+    )
+    pnl = CCXTSource(
+        cfg.exchange, include_funding=True, include_open_interest=False, exchange=signals.exchange
+    )
+    return SignalRunner(
+        cfg.strategy,
+        signals,
+        cfg.symbols,
+        timeframe=cfg.timeframe,
+        history_bars=cfg.history_bars,
+        log=SignalLog(log_path),
+        pnl_source=pnl,
+        costs=cfg.costs,
+    )
+
+
+def cmd_run(args: argparse.Namespace) -> None:
+    from alpha_gen.live.runner import StaleDataError
+
+    runner = _live_runner(args.config, args.log)
+    try:
+        result = runner.run_once(args.now)
+    except StaleDataError as exc:
+        print(f"STALE: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
+    out: dict[str, Any] = {
+        "status": result.status,
+        "strategy": runner.strategy.name,
+        "timestamp": str(result.timestamp),
+        "positions": int((result.weights != 0).sum()),
+    }
+    if result.record is not None:
+        out["hash"] = result.record.hash
+        out["realized"] = result.record.metadata.get("realized")
+    print(json.dumps(out, indent=2))
+
+
+def cmd_track(args: argparse.Namespace) -> None:
+    from pathlib import Path
+
+    from alpha_gen.live.page import render_track_page, track_payload
+
+    log = SignalLog(args.log)
+    try:
+        log.verify()
+        verified = True
+    except LogIntegrityError as exc:
+        print(f"INVALID: {exc}", file=sys.stderr)
+        verified = False
+    records = log.records()
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "index.html").write_text(render_track_page(records, verified=verified, title=args.title))
+    (out / "track.json").write_text(json.dumps(track_payload(records), indent=2, default=str))
+    print(f"Wrote {out / 'index.html'} ({len(records)} records, verified={verified})")
+    if not verified:
+        raise SystemExit(1)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="alpha-gen", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -113,6 +184,18 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--param", action="append", default=[], help="factor param key=value")
     eval_options(ev)
     ev.set_defaults(func=cmd_evaluate)
+
+    run = sub.add_parser("run", help="compute and log the latest signal for a strategy config")
+    run.add_argument("config", help="strategy TOML, e.g. strategies/momentum_v0.toml")
+    run.add_argument("--log", default="track/signals.jsonl")
+    run.add_argument("--now", help="pretend the current time is this (UTC), for backfills/tests")
+    run.set_defaults(func=cmd_run)
+
+    track = sub.add_parser("track", help="build the track-record page from a signal log")
+    track.add_argument("--log", default="track/signals.jsonl")
+    track.add_argument("--out", default="track/site")
+    track.add_argument("--title", default="alpha-gen paper track record")
+    track.set_defaults(func=cmd_track)
 
     verify = sub.add_parser("verify-log", help="verify a hash-chained signal log")
     verify.add_argument("path")

@@ -1,0 +1,45 @@
+name: Paper trading
+
+# Runs every strategy config daily shortly after the 00:00 UTC bar closes, appends the new signal
+# (with the previous signal's realised paper P&L) to the hash-chained log, rebuilds the track
+# record page, and commits both. Scheduled workflows only run on the default branch.
+on:
+  schedule:
+    - cron: "23 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paper-trading
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - run: uv sync --extra exchange
+      - name: Verify the existing log before touching it
+        run: |
+          if [ -f track/signals.jsonl ]; then uv run alpha-gen verify-log track/signals.jsonl; fi
+      - name: Run strategies
+        run: |
+          for config in strategies/*.toml; do
+            uv run alpha-gen run "$config" --log track/signals.jsonl
+          done
+      - name: Build track record page
+        run: uv run alpha-gen track --log track/signals.jsonl --out track/site
+      - name: Commit
+        run: |
+          git config user.name "alpha-gen bot"
+          git config user.email "alpha-gen-bot@users.noreply.github.com"
+          git add track/
+          if git diff --cached --quiet; then echo "Nothing new"; exit 0; fi
+          git commit -m "Paper signals $(date -u +%Y-%m-%d)"
+          git push

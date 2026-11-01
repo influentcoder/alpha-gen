@@ -265,10 +265,55 @@ def test_config_validation(tmp_path, edit, message):
 
 def test_track_record_and_summary(daily_market, tmp_path):
     log = SignalLog(tmp_path / "s.jsonl")
-    run_daily(momentum_strategy(), daily_market, log, range(150, 180))
+    run_daily(momentum_strategy(), daily_market, log, range(150, 190))
     record = track_record(log.records(), "momo_test")
-    assert len(record) == 29  # the first record has nothing realised yet
+    assert len(record) == 39  # the first record has nothing realised yet
     assert record["equity"].iloc[-1] == pytest.approx((1 + record["net"]).prod())
     summary = track_summary(record, "1d")
-    assert summary["periods"] == 29 and np.isfinite(summary["sharpe"])
+    assert summary["periods"] == 39 and np.isfinite(summary["sharpe"])
+    short = track_summary(record.iloc[:10], "1d")
+    assert np.isnan(short["sharpe"]) and np.isfinite(short["total_return"])  # too few periods
     assert track_record(log.records(), "other").empty
+
+
+def test_track_page_renders(daily_market, tmp_path):
+    from alpha_gen.live.page import render_track_page, track_payload
+
+    log = SignalLog(tmp_path / "s.jsonl")
+    run_daily(momentum_strategy(), daily_market, log, range(150, 155))
+    page = render_track_page(log.records(), verified=True, title="T <&>")
+    assert "momo_test" in page and "T &lt;&amp;&gt;" in page
+    assert "n/a (4/30 periods)" in page and log.records()[-1].hash in page
+    payload = track_payload(log.records())
+    assert payload["head"] == log.records()[-1].hash
+    assert len(payload["strategies"]["momo_test"]["equity"]) == 4
+    assert "No signals logged yet" in render_track_page([], verified=True, title="x")
+
+
+def test_ccxt_list_symbols_filters_non_crypto():
+    from alpha_gen.data.ccxt_source import CCXTSource
+
+    def market(symbol, category="1", rule="normal", **kw):
+        base = {"swap": True, "linear": True, "quote": "USDT", "active": True}
+        return symbol, {**base, **kw, "info": {"instCategory": category, "ruleType": rule}}
+
+    class Exchange:
+        def load_markets(self):
+            return dict(
+                [
+                    market("BTC/USDT:USDT"),
+                    market("TSLA/USDT:USDT", category="3"),
+                    market("XAU/USDT:USDT", category="4"),
+                    market("NEW/USDT:USDT", rule="pre_market"),
+                    market("OLD/USDT:USDT", active=False),
+                    market("ETH/USD:ETH", quote="USD", linear=False),
+                    (
+                        "ETH/USDT:USDT",
+                        {"swap": True, "linear": True, "quote": "USDT", "active": True},
+                    ),
+                ]
+            )
+
+    source = CCXTSource(exchange=Exchange())
+    assert source.list_symbols() == ["BTC/USDT:USDT", "ETH/USDT:USDT"]
+    assert "TSLA/USDT:USDT" in source.list_symbols(crypto_only=False)

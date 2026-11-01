@@ -1,0 +1,31 @@
+# EXPERIMENTAL paper strategy = research spec H2 (see research/README.md): FAILED its
+# pre-registered gate (top-3 concentration 50.1% vs < 50%); passed only in a post-hoc rerun that
+# excluded gold/silver perps from the universe. Forward paper results decide its fate.
+# Logic: 14-day cross-sectional momentum, rank weights, dollar-neutral, gross 1.0, monthly top-30
+# crypto universe by previous-month quote volume, coins listed < 60 days excluded, daily rebalance.
+name = "momentum_seasoned_v0"
+description = "Experimental: 14-day momentum on OKX top-30 crypto perps listed 60+ days"
+timeframe = "1d"
+history_bars = 100
+
+[source]
+exchange = "okx"
+quote = "USDT"
+
+[universe]
+top_n = 30
+min_listing_age_days = 60
+
+[[factors]]
+label = "momo"
+name = "momentum"
+weight = 1.0
+params = { lookback = 14 }
+
+[portfolio]
+normalize = "rank"
+rebalance_every = "1D"
+
+[costs]
+fee_bps = 5.0
+slippage_bps = 3.0

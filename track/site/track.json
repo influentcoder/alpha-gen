@@ -1,0 +1,85 @@
+{
+  "head": "80b6d566773bbbb37a77bc71a37f86986827cad51965706ecb43e32581c0dac5",
+  "strategies": {
+    "momentum_seasoned_v0": {
+      "summary": {
+        "periods": 0
+      },
+      "latest": {
+        "timestamp": "2026-10-31T00:00:00+00:00",
+        "weights": {
+          "ADA/USDT:USDT": -0.04336735,
+          "ARB/USDT:USDT": -0.03316327,
+          "AVAX/USDT:USDT": -0.04846939,
+          "BCH/USDT:USDT": 0.05357143,
+          "BNB/USDT:USDT": 0.02806122,
+          "BTC/USDT:USDT": 0.00255102,
+          "DASH/USDT:USDT": 0.03826531,
+          "DOGE/USDT:USDT": 0.00765306,
+          "ENA/USDT:USDT": 0.04336735,
+          "ETH/USDT:USDT": -0.00765306,
+          "FIL/USDT:USDT": -0.05867347,
+          "HYPE/USDT:USDT": 0.06377551,
+          "LINK/USDT:USDT": 0.02295918,
+          "LIT/USDT:USDT": 0.04846939,
+          "LTC/USDT:USDT": -0.00255102,
+          "NEAR/USDT:USDT": -0.02806122,
+          "ONDO/USDT:USDT": -0.0127551,
+          "ONE/USDT:USDT": -0.06887755,
+          "PEPE/USDT:USDT": 0.06887755,
+          "PUMP/USDT:USDT": 0.01785714,
+          "SOL/USDT:USDT": -0.01785714,
+          "SUI/USDT:USDT": -0.02295918,
+          "TRUMP/USDT:USDT": -0.03826531,
+          "UNI/USDT:USDT": 0.03316327,
+          "USELESS/USDT:USDT": -0.05357143,
+          "WLD/USDT:USDT": -0.06377551,
+          "XRP/USDT:USDT": 0.0127551,
+          "ZEC/USDT:USDT": 0.05867347
+        }
+      },
+      "equity": {}
+    },
+    "momentum_v0": {
+      "summary": {
+        "periods": 0
+      },
+      "latest": {
+        "timestamp": "2026-10-31T00:00:00+00:00",
+        "weights": {
+          "ADA/USDT:USDT": -0.03333333,
+          "AKE/USDT:USDT": -0.06444444,
+          "ARB/USDT:USDT": -0.02444444,
+          "AVAX/USDT:USDT": -0.03777778,
+          "BCH/USDT:USDT": 0.05111111,
+          "BNB/USDT:USDT": 0.02888889,
+          "BTC/USDT:USDT": 0.00666667,
+          "DASH/USDT:USDT": 0.03777778,
+          "DOGE/USDT:USDT": 0.01111111,
+          "ENA/USDT:USDT": 0.04222222,
+          "ETH/USDT:USDT": -0.00222222,
+          "FIL/USDT:USDT": -0.04666667,
+          "HYPE/USDT:USDT": 0.06,
+          "LINK/USDT:USDT": 0.02444444,
+          "LIT/USDT:USDT": 0.04666667,
+          "LTC/USDT:USDT": 0.00222222,
+          "NEAR/USDT:USDT": -0.02,
+          "ONDO/USDT:USDT": -0.00666667,
+          "ONE/USDT:USDT": -0.06,
+          "PEPE/USDT:USDT": 0.06444444,
+          "PONS/USDT:USDT": -0.05111111,
+          "PUMP/USDT:USDT": 0.02,
+          "SOL/USDT:USDT": -0.01111111,
+          "SUI/USDT:USDT": -0.01555556,
+          "TRUMP/USDT:USDT": -0.02888889,
+          "UNI/USDT:USDT": 0.03333333,
+          "USELESS/USDT:USDT": -0.04222222,
+          "WLD/USDT:USDT": -0.05555556,
+          "XRP/USDT:USDT": 0.01555556,
+          "ZEC/USDT:USDT": 0.05555556
+        }
+      },
+      "equity": {}
+    }
+  }
+}

@@ -1,0 +1,30 @@
+# EXPERIMENTAL paper strategy: did NOT pass the research gate (see research/README.md).
+# Logic = research spec B0: 14-day (336h) cross-sectional momentum, rank weights,
+# dollar-neutral, gross 1.0, monthly top-30 universe by previous-month quote volume,
+# rebalanced daily at 00:00 UTC. Editing this file changes the SHA-256 stamped into every
+# signal record; change the logic -> change the name.
+name = "momentum_v0"
+description = "Experimental: 14-day cross-sectional momentum on the OKX top-30 USDT perps"
+timeframe = "1d"
+history_bars = 100
+
+[source]
+exchange = "okx"
+quote = "USDT"
+
+[universe]
+top_n = 30
+
+[[factors]]
+label = "momo"
+name = "momentum"
+weight = 1.0
+params = { lookback = 14 }
+
+[portfolio]
+normalize = "rank"
+rebalance_every = "1D"
+
+[costs]
+fee_bps = 5.0
+slippage_bps = 3.0
